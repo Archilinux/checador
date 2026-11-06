@@ -29,7 +29,7 @@ CATALOGO_SALIDAS_EXTRAS = {
     "Taller": ["Reparaciones", "Mantenimiento", "Entrega", "Compra", "Medico", "Otra"],
     "Ventas": ["Compras", "Entrega", "Medico", "Otra"],
     "Refacciones": ["Compras", "Medico", "Otra"],
-    "Vigilancia": ["Rondin", "Apoyo Sucursal", "Medico", "Otra"] # <-- ÁREA NUEVA
+    "Vigilancia": ["Rondin", "Apoyo Sucursal", "Medico", "Otra"]
 }
 
 # --- 3. CONEXIÓN A GOOGLE SHEETS ---
@@ -51,10 +51,10 @@ def conectar_bd_nube():
 def inicializar_pestanas(libro):
     nombres_hojas = [h.title for h in libro.worksheets()]
     
-    # NUEVO: Hoja de Horarios
+    # NUEVO: Hoja de Horarios (Sin Tolerancia por regla SAT)
     if "Horarios" not in nombres_hojas:
-        h_hor = libro.add_worksheet(title="Horarios", rows="50", cols="6")
-        h_hor.append_row(["Departamento", "Entrada", "Salida", "Inicio_Comida", "Fin_Comida", "Tolerancia_Minutos"])
+        h_hor = libro.add_worksheet(title="Horarios", rows="50", cols="5")
+        h_hor.append_row(["Departamento", "Entrada", "Salida", "Inicio_Comida", "Fin_Comida"])
         
     if "Empleados" not in nombres_hojas:
         h_emp = libro.add_worksheet(title="Empleados", rows="200", cols="10")
@@ -216,17 +216,20 @@ if modo == "📱 Checar desde Celular":
                 
                 hoja_asi = libro_bd.worksheet("Asistencias")
 
-                # Cierre automático de comisión si se va directo a su casa
+                # --- NUEVA REGLA: RETROCESO DE 30 MINUTOS PARA EL REGRESO ---
                 if evento == "🔴 Salida Definitiva" and not dentro_rango:
-                    h_auto_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                    # Restamos 30 minutos a la hora actual para simular el trayecto de regreso de la comisión
+                    ahora_regreso = ahora - timedelta(minutes=30)
+                    h_auto_str = ahora_regreso.strftime("%Y-%m-%d %H:%M:%S")
+                    
                     sello_auto = generar_hash(f"{emp_actual['Codigo']}|{h_auto_str}|🔙 Regreso de Salida Operativa|||{lat_actual}|{lon_actual}")
                     hoja_asi.append_row([
                         f_str, h_auto_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
                         emp_actual["Departamento"], suc_emp, "🔙 Regreso de Salida Operativa", "",
-                        "", "Cierre automático (Fin de jornada remota)", lat_actual, lon_actual, dist_m, estado_ubi, link_maps, sello_auto
+                        "", "Cierre automático (-30 min por trayecto)", lat_actual, lon_actual, dist_m, estado_ubi, link_maps, sello_auto
                     ])
-                    ahora = ahora + timedelta(seconds=1)
 
+                # Registro de la Salida Definitiva en la hora actual real
                 h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
                 sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|{depto_extra}|{motivo_extra}|{lat_actual}|{lon_actual}")
                 
@@ -239,7 +242,7 @@ if modo == "📱 Checar desde Celular":
                 
                 st.balloons()
                 if evento == "🔴 Salida Definitiva" and not dentro_rango:
-                    st.success(f"✔️ Regreso Automático y Salida Definitiva guardados — {estado_ubi}")
+                    st.success(f"✔️ Regreso Automático (-30 min) y Salida Definitiva guardados — {estado_ubi}")
                 else:
                     st.success(f"✔️ Registro guardado exitosamente a las {h_str} — {estado_ubi}")
 
@@ -271,8 +274,8 @@ elif modo == "💻 Panel Administrador":
 
     # --- PESTAÑA 2: CONFIGURACIÓN DE HORARIOS ---
     with tab_horarios:
-        st.subheader("⚙️ Configuración de Jornadas y Tolerancia")
-        st.caption("Define el horario de trabajo y tiempo de comida de cada departamento para el cálculo de retardos.")
+        st.subheader("⚙️ Configuración de Jornadas")
+        st.caption("Define el horario de trabajo y tiempo de comida (Tolerancia eliminada por disposición SAT).")
         
         hoja_horarios = libro_bd.worksheet("Horarios")
         df_hor = pd.DataFrame(hoja_horarios.get_all_records())
@@ -283,30 +286,28 @@ elif modo == "💻 Panel Administrador":
             h_ent = col_h2.time_input("Hora de Entrada", value=time(8, 0))
             h_sal = col_h3.time_input("Hora de Salida", value=time(18, 0))
             
-            col_h4, col_h5, col_h6 = st.columns(3)
+            col_h4, col_h5 = st.columns(2)
             h_com_ini = col_h4.time_input("Inicio de Comida", value=time(14, 0))
             h_com_fin = col_h5.time_input("Fin de Comida", value=time(15, 0))
-            tolerancia = col_h6.number_input("Tolerancia Retardo (Minutos)", min_value=0, value=10, step=5)
             
             if st.form_submit_button("💾 Guardar Horario"):
-                # Buscar si el departamento ya existe para actualizarlo
                 if not df_hor.empty and dep_sel in df_hor['Departamento'].values:
                     idx = df_hor[df_hor['Departamento'] == dep_sel].index[0]
                     fila_gsheet = int(idx) + 2
-                    hoja_horarios.update(f"A{fila_gsheet}:F{fila_gsheet}", [[
+                    hoja_horarios.update(f"A{fila_gsheet}:E{fila_gsheet}", [[
                         dep_sel, h_ent.strftime("%H:%M"), h_sal.strftime("%H:%M"),
-                        h_com_ini.strftime("%H:%M"), h_com_fin.strftime("%H:%M"), str(tolerancia)
+                        h_com_ini.strftime("%H:%M"), h_com_fin.strftime("%H:%M")
                     ]])
                 else:
                     hoja_horarios.append_row([
                         dep_sel, h_ent.strftime("%H:%M"), h_sal.strftime("%H:%M"),
-                        h_com_ini.strftime("%H:%M"), h_com_fin.strftime("%H:%M"), str(tolerancia)
+                        h_com_ini.strftime("%H:%M"), h_com_fin.strftime("%H:%M")
                     ])
                 st.success(f"✅ Horario del departamento {dep_sel} actualizado correctamente.")
                 st.rerun()
 
         if not df_hor.empty:
-            st.markdown("**Horarios Registrados:**")
+            st.markdown("**Horarios Registrados (Sin Tolerancia):**")
             st.dataframe(df_hor, use_container_width=True, hide_index=True)
 
     # --- PESTAÑA 3: ALTA DE EMPLEADOS ---
@@ -325,13 +326,11 @@ elif modo == "💻 Panel Administrador":
             n_suc = ce4.selectbox("Sucursal Base", list(SUCURSALES_GPS.keys()))
             n_pin = ce5.text_input("PIN de 4 dígitos", type="password")
             
-            # --- NUEVO: CHECKBOX DE PUESTO ---
             quiere_puesto = st.checkbox("¿Especificar Puesto del Empleado?")
             n_puesto = st.text_input("Puesto (Ej. Guardia de Seguridad, Mecánico A, etc.)", disabled=not quiere_puesto)
             
             if st.form_submit_button("➕ Registrar Empleado"):
                 if n_cod and n_nom and n_pin:
-                    # Validar si ya existe el código
                     if not df_emp.empty and str(n_cod) in df_emp['Codigo'].astype(str).values:
                         st.error("⚠️ El código de empleado ya existe.")
                     else:
