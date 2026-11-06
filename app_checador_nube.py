@@ -24,10 +24,10 @@ SUCURSALES_GPS = {
 
 # --- 2. CATÁLOGO DE SALIDAS EXTRAS POR DEPARTAMENTO ---
 CATALOGO_SALIDAS_EXTRAS = {
-    "Administrativo": ["Bancos", "Compras", "Firma cheque"],
-    "Taller": ["Reparaciones", "Mantenimiento", "Entrega", "Compra"],
-    "Ventas": ["Compras", "Entrega"],
-    "Refacciones": ["Compras"]
+    "Administrativo": ["Bancos", "Compras", "Firma cheque","Medico","Otra"],
+    "Taller": ["Reparaciones", "Mantenimiento", "Entrega", "Compra","Medico","Otra"],
+    "Ventas": ["Compras", "Entrega","Medico","Otra"],
+    "Refacciones": ["Compras","Medico","Otra"]
 }
 
 # --- 3. CONEXIÓN A GOOGLE SHEETS (USANDO TU SECRET ACTUAL) ---
@@ -144,8 +144,8 @@ if modo == "📱 Checar desde Celular":
             "Selecciona el movimiento:",
             [
                 "🟢 Entrada de Jornada",
-                "🚗 Salida Extra (Operativa / Comisión)",
-                "🔙 Regreso de Salida Extra",
+                "🚗 Salida Operativa",
+                "🔙 Regreso de Salida Operativa",
                 "🍽️ Salida a Comer",
                 "🍽️ Regreso de Comer",
                 "🔴 Salida Definitiva"
