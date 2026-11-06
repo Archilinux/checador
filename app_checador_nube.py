@@ -100,7 +100,7 @@ st.sidebar.info(f"🕒 **Hora Oficial Servidor:**\n{ahora_srv.strftime('%d/%m/%Y
 # MÓDULO 1: CHECADOR MÓVIL CON VERIFICACIÓN DE UBICACIÓN GPS
 # ==============================================================================
 if modo == "📱 Checar desde Celular":
-    st.title("📱 Registro de Asistencia y Salidas con GPS")
+    st.title("📱 Registro de Asistencia y Salidas")
     
     # 1. Capturar GPS del navegador del celular en tiempo real
     st.markdown("##### 📍 1. Verificación de Ubicación del Dispositivo")
