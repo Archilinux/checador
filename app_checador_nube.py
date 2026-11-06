@@ -24,10 +24,10 @@ SUCURSALES_GPS = {
 
 # --- 2. CATÁLOGO DE SALIDAS EXTRAS POR DEPARTAMENTO ---
 CATALOGO_SALIDAS_EXTRAS = {
-    "Administrativo": ["Bancos", "Compras", "Firma cheque","Medico","Otra"],
-    "Taller": ["Reparaciones", "Mantenimiento", "Entrega", "Compra","Medico","Otra"],
-    "Ventas": ["Compras", "Entrega","Medico","Otra"],
-    "Refacciones": ["Compras","Medico","Otra"]
+    "Administrativo": ["Bancos", "Compras", "Firma cheque"],
+    "Taller": ["Reparaciones", "Mantenimiento", "Entrega", "Compra"],
+    "Ventas": ["Compras", "Entrega"],
+    "Refacciones": ["Compras"]
 }
 
 # --- 3. CONEXIÓN A GOOGLE SHEETS (USANDO TU SECRET ACTUAL) ---
@@ -100,7 +100,7 @@ st.sidebar.info(f"🕒 **Hora Oficial Servidor:**\n{ahora_srv.strftime('%d/%m/%Y
 # MÓDULO 1: CHECADOR MÓVIL CON VERIFICACIÓN DE UBICACIÓN GPS
 # ==============================================================================
 if modo == "📱 Checar desde Celular":
-    st.title("📱 Registro de Asistencia y Salidas")
+    st.title("📱 Registro de Asistencia y Salidas con GPS")
     
     # 1. Capturar GPS del navegador del celular en tiempo real
     st.markdown("##### 📍 1. Verificación de Ubicación del Dispositivo")
@@ -144,8 +144,8 @@ if modo == "📱 Checar desde Celular":
             "Selecciona el movimiento:",
             [
                 "🟢 Entrada de Jornada",
-                "🚗 Salida Operativa",
-                "🔙 Regreso de Salida Operativa",
+                "🚗 Salida Extra (Operativa / Comisión)",
+                "🔙 Regreso de Salida Extra",
                 "🍽️ Salida a Comer",
                 "🍽️ Regreso de Comer",
                 "🔴 Salida Definitiva"
@@ -213,7 +213,7 @@ if modo == "📱 Checar desde Celular":
 elif modo == "💻 Panel Administrador (RH / SAT)":
     pin_adm = st.sidebar.text_input("PIN Administrador:", type="password")
     if pin_adm != "1234":
-        st.warning("🔒 Introduce el PIN de Administrador.")
+        st.warning("🔒 Introduce el PIN de Administrador (1234).")
         st.stop()
         
     hoja_asi = libro_bd.worksheet("Asistencias")
