@@ -1,4 +1,5 @@
 import streamlit as st
+import streamlit.components.v1 as components
 import gspread
 from google.oauth2.service_account import Credentials
 import pandas as pd
@@ -15,19 +16,21 @@ st.set_page_config(page_title="Checador Cloud GPS 2027", page_icon="📍", layou
 ZONA_HORARIA = ZoneInfo("America/Mexico_City")
 
 # --- 1. COORDENADAS GPS DE TUS SUCURSALES (GEOCERCA) ---
-# Ajusta la latitud y longitud exacta de cada una de tus 6 sucursales
+# Coordenadas exactas basadas en tus direcciones en Chiapas
 SUCURSALES_GPS = {
-    "Tapachula Matriz": {"lat": 14.9069, "lon": -92.2628, "radio_metros": 120},
-    "Sucursal 2": {"lat": 14.9120, "lon": -92.2550, "radio_metros": 120},
-    "Sucursal 3": {"lat": 14.8950, "lon": -92.2710, "radio_metros": 120},
+    "Tapachula": {"lat": 14.882420, "lon": -92.278300, "radio_metros": 150}, # Carretera Puerto Madero Km 2.5
+    "Tuxtla": {"lat": 16.764510, "lon": -93.153420, "radio_metros": 150},    # Calz. Juan Crispin 1244
+    "Tonala": {"lat": 16.089850, "lon": -93.755430, "radio_metros": 150},    # 36WP+76
+    "Villa Flores": {"lat": 16.233520, "lon": -93.268510, "radio_metros": 150}, # 6PFF+QR8
+    "Comitan": {"lat": 16.230710, "lon": -92.122130, "radio_metros": 150},   # Chichima Guadalupe
 }
 
 # --- 2. CATÁLOGO DE SALIDAS EXTRAS POR DEPARTAMENTO ---
 CATALOGO_SALIDAS_EXTRAS = {
-    "Administrativo": ["Bancos", "Compras", "Firma cheque"],
-    "Taller": ["Reparaciones", "Mantenimiento", "Entrega", "Compra"],
-    "Ventas": ["Compras", "Entrega"],
-    "Refacciones": ["Compras"]
+    "Administrativo": ["Bancos", "Compras", "Firma cheque", "Medico", "Otra"],
+    "Taller": ["Reparaciones", "Mantenimiento", "Entrega", "Compra", "Medico", "Otra"],
+    "Ventas": ["Compras", "Entrega", "Medico", "Otra"],
+    "Refacciones": ["Compras", "Medico", "Otra"]
 }
 
 # --- 3. CONEXIÓN A GOOGLE SHEETS (USANDO TU SECRET ACTUAL) ---
@@ -52,12 +55,12 @@ def inicializar_pestanas(libro):
     if "Empleados" not in nombres_hojas:
         h_emp = libro.add_worksheet(title="Empleados", rows="200", cols="10")
         h_emp.append_row(["Codigo", "Nombre", "RFC_CURP", "Departamento", "Sucursal", "PIN", "Activo"])
-        # Empleados iniciales de prueba
+        # Empleados iniciales de prueba (Ajustados con tus nuevas sucursales)
         h_emp.append_rows([
-            ["001", "Laura Méndez", "MEL880101XXX", "Administrativo", "Tapachula Matriz", "1111", "1"],
-            ["002", "Roberto Gómez", "GOR900512XXX", "Taller", "Tapachula Matriz", "2222", "1"],
-            ["003", "Carlos Ruiz", "RUC850920XXX", "Ventas", "Tapachula Matriz", "3333", "1"],
-            ["004", "Miguel Pérez", "PEM921103XXX", "Refacciones", "Tapachula Matriz", "4444", "1"]
+            ["001", "Laura Méndez", "MEL880101XXX", "Administrativo", "Tapachula", "1111", "1"],
+            ["002", "Roberto Gómez", "GOR900512XXX", "Taller", "Tuxtla", "2222", "1"],
+            ["003", "Carlos Ruiz", "RUC850920XXX", "Ventas", "Tonala", "3333", "1"],
+            ["004", "Miguel Pérez", "PEM921103XXX", "Refacciones", "Comitan", "4444", "1"]
         ])
         
     if "Asistencias" not in nombres_hojas:
@@ -93,14 +96,34 @@ inicializar_pestanas(libro_bd)
 # --- MENÚ LATERAL ---
 st.sidebar.title("📍 Checador Cloud 2027")
 modo = st.sidebar.radio("Modo:", ["📱 Checar desde Celular", "💻 Panel Administrador (RH / SAT)"])
-ahora_srv = datetime.now(ZONA_HORARIA)
-st.sidebar.info(f"🕒 **Hora Oficial Servidor:**\n{ahora_srv.strftime('%d/%m/%Y %H:%M:%S')}")
+
+# Reloj en vivo (Frontend JavaScript) que no borra la pantalla al teclear el PIN
+reloj_html = """
+<div style="padding: 10px; background-color: #f0f2f6; border-radius: 5px; text-align: center;">
+    <p style="margin: 0; font-size: 14px; font-family: sans-serif; color: #31333F;">🕒 <b>Hora Oficial Servidor:</b></p>
+    <p id="reloj_vivo" style="margin: 0; font-size: 18px; font-weight: bold; font-family: monospace; color: #0068c9;"></p>
+</div>
+<script>
+    function actualizarReloj() {
+        var ahora = new Date();
+        var opciones = { timeZone: 'America/Mexico_City', hour12: false, hour: '2-digit', minute:'2-digit', second:'2-digit' };
+        var horaFmt = ahora.toLocaleTimeString('es-MX', opciones);
+        var fechaFmt = ahora.toLocaleDateString('es-MX', {timeZone: 'America/Mexico_City'});
+        document.getElementById('reloj_vivo').innerHTML = fechaFmt + "<br>" + horaFmt;
+    }
+    setInterval(actualizarReloj, 1000);
+    actualizarReloj();
+</script>
+"""
+with st.sidebar:
+    st.write("<br>", unsafe_allow_html=True)
+    components.html(reloj_html, height=85)
 
 # ==============================================================================
 # MÓDULO 1: CHECADOR MÓVIL CON VERIFICACIÓN DE UBICACIÓN GPS
 # ==============================================================================
 if modo == "📱 Checar desde Celular":
-    st.title("📱 Registro de Asistencia y Salidas con GPS")
+    st.title("📱 Registro de Asistencia y Salidas")
     
     # 1. Capturar GPS del navegador del celular en tiempo real
     st.markdown("##### 📍 1. Verificación de Ubicación del Dispositivo")
@@ -144,8 +167,8 @@ if modo == "📱 Checar desde Celular":
             "Selecciona el movimiento:",
             [
                 "🟢 Entrada de Jornada",
-                "🚗 Salida Extra (Operativa / Comisión)",
-                "🔙 Regreso de Salida Extra",
+                "🚗 Salida Operativa",
+                "🔙 Regreso de Salida Operativa",
                 "🍽️ Salida a Comer",
                 "🍽️ Regreso de Comer",
                 "🔴 Salida Definitiva"
@@ -153,7 +176,7 @@ if modo == "📱 Checar desde Celular":
         )
         
         depto_extra, motivo_extra, ref_extra = "", "", ""
-        if evento == "🚗 Salida Extra (Operativa / Comisión)":
+        if evento == "🚗 Salida Operativa":
             deptos_lista = list(CATALOGO_SALIDAS_EXTRAS.keys())
             idx_d = deptos_lista.index(emp_actual["Departamento"]) if (emp_actual and emp_actual["Departamento"] in deptos_lista) else 0
             
@@ -161,10 +184,10 @@ if modo == "📱 Checar desde Celular":
             depto_extra = c1.selectbox("Área:", deptos_lista, index=idx_d)
             motivo_extra = c2.selectbox("Motivo de Salida:", CATALOGO_SALIDAS_EXTRAS[depto_extra])
             ref_extra = st.text_input("Folio / Cliente / Banco / Destino:").strip()
-        elif evento == "🔙 Regreso de Salida Extra":
+        elif evento == "🔙 Regreso de Salida Operativa":
             ref_extra = st.text_input("Observaciones o folio de regreso:").strip()
 
-        # Bloqueo por Geocerca si quieres obligar a que chequen dentro de la sucursal
+        # Bloqueo por Geocerca
         exigir_geocerca = st.checkbox("Validar cercanía a sucursal asignada", value=True, disabled=True)
 
         if st.button("✅ ENVIAR REGISTRO A LA NUBE", type="primary", use_container_width=True):
@@ -185,7 +208,7 @@ if modo == "📱 Checar desde Celular":
                 else:
                     estado_ubi = f"📍 Fuera de Sucursal ({dist_m} m)"
                 
-                # Si es Entrada o Salida Definitiva y está muy lejos, puedes bloquearlo o marcar alerta
+                # Capturamos la hora en el instante exacto en que se presiona el botón
                 ahora = datetime.now(ZONA_HORARIA)
                 f_str = ahora.strftime("%Y-%m-%d")
                 h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
