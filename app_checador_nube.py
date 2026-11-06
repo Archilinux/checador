@@ -213,7 +213,7 @@ if modo == "📱 Checar desde Celular":
 elif modo == "💻 Panel Administrador (RH / SAT)":
     pin_adm = st.sidebar.text_input("PIN Administrador:", type="password")
     if pin_adm != "1234":
-        st.warning("🔒 Introduce el PIN de Administrador (1234).")
+        st.warning("🔒 Introduce el PIN de Administrador.")
         st.stop()
         
     hoja_asi = libro_bd.worksheet("Asistencias")
