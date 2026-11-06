@@ -51,7 +51,6 @@ def conectar_bd_nube():
 def inicializar_pestanas(libro):
     nombres_hojas = [h.title for h in libro.worksheets()]
     
-    # NUEVO: Hoja de Horarios (Sin Tolerancia por regla SAT)
     if "Horarios" not in nombres_hojas:
         h_hor = libro.add_worksheet(title="Horarios", rows="50", cols="5")
         h_hor.append_row(["Departamento", "Entrada", "Salida", "Inicio_Comida", "Fin_Comida"])
@@ -192,7 +191,7 @@ if modo == "📱 Checar desde Celular":
         if st.button("✅ ENVIAR REGISTRO", type="primary", use_container_width=True):
             if not emp_actual:
                 st.error("⚠️ Ingresa tu Código y PIN válidos primero.")
-            elif (lat_actual is None or lon_actual is None) and evento != "🔴 Salida Definitiva":
+            elif (lat_actual is None or lon_actual is None) and evento not in ["🔴 Salida Definitiva", "🟢 Entrada de Jornada"]:
                 st.error("⚠️ No se detectó tu ubicación GPS. Activa la ubicación para checar este movimiento.")
             else:
                 suc_emp = emp_actual["Sucursal"]
@@ -213,37 +212,75 @@ if modo == "📱 Checar desde Celular":
                 
                 ahora = datetime.now(ZONA_HORARIA)
                 f_str = ahora.strftime("%Y-%m-%d")
-                
                 hoja_asi = libro_bd.worksheet("Asistencias")
 
-                # --- NUEVA REGLA: RETROCESO DE 30 MINUTOS PARA EL REGRESO ---
+                # --- ESCENARIO 1: SALIDA DEFINITIVA REMOTA (-30 MIN DE TRAYECTO) ---
                 if evento == "🔴 Salida Definitiva" and not dentro_rango:
-                    # Restamos 30 minutos a la hora actual para simular el trayecto de regreso de la comisión
                     ahora_regreso = ahora - timedelta(minutes=30)
                     h_auto_str = ahora_regreso.strftime("%Y-%m-%d %H:%M:%S")
-                    
                     sello_auto = generar_hash(f"{emp_actual['Codigo']}|{h_auto_str}|🔙 Regreso de Salida Operativa|||{lat_actual}|{lon_actual}")
+                    
                     hoja_asi.append_row([
                         f_str, h_auto_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
                         emp_actual["Departamento"], suc_emp, "🔙 Regreso de Salida Operativa", "",
                         "", "Cierre automático (-30 min por trayecto)", lat_actual, lon_actual, dist_m, estado_ubi, link_maps, sello_auto
                     ])
 
-                # Registro de la Salida Definitiva en la hora actual real
-                h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
-                sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|{depto_extra}|{motivo_extra}|{lat_actual}|{lon_actual}")
-                
-                hoja_asi.append_row([
-                    f_str, h_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
-                    emp_actual["Departamento"], suc_emp, evento, depto_extra,
-                    motivo_extra, ref_extra, lat_actual, lon_actual,
-                    dist_m, estado_ubi, link_maps, sello_sha
-                ])
-                
-                st.balloons()
-                if evento == "🔴 Salida Definitiva" and not dentro_rango:
+                    h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                    sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|{depto_extra}|{motivo_extra}|{lat_actual}|{lon_actual}")
+                    hoja_asi.append_row([
+                        f_str, h_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
+                        emp_actual["Departamento"], suc_emp, evento, depto_extra,
+                        motivo_extra, ref_extra, lat_actual, lon_actual, dist_m, estado_ubi, link_maps, sello_sha
+                    ])
+                    st.balloons()
                     st.success(f"✔️ Regreso Automático (-30 min) y Salida Definitiva guardados — {estado_ubi}")
+
+                # --- ESCENARIO 2: ENTRADA DE JORNADA REMOTA (+10 MIN COMISIÓN AUTOMÁTICA) ---
+                elif evento == "🟢 Entrada de Jornada" and not dentro_rango:
+                    # 1. Guarda la entrada a la hora real
+                    h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                    sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|||{lat_actual}|{lon_actual}")
+                    hoja_asi.append_row([
+                        f_str, h_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
+                        emp_actual["Departamento"], suc_emp, evento, "",
+                        "", "Entrada Remota", lat_actual, lon_actual, dist_m, estado_ubi, link_maps, sello_sha
+                    ])
+                    
+                    # 2. Asignar motivo según departamento
+                    depto = emp_actual["Departamento"]
+                    if depto == "Taller": motivo_auto = "Reparaciones"
+                    elif depto == "Ventas": motivo_auto = "Entrega"
+                    elif depto == "Refacciones": motivo_auto = "Compra"
+                    else: motivo_auto = "Otra" # Para Administrativo y Vigilancia
+
+                    # 3. Programa la Salida Operativa exactamente 10 min en el futuro
+                    ahora_salida = ahora + timedelta(minutes=10)
+                    h_auto_str = ahora_salida.strftime("%Y-%m-%d %H:%M:%S")
+                    ref_auto = "Apertura automática de comisión (+10 min por entrada remota)"
+                    sello_auto = generar_hash(f"{emp_actual['Codigo']}|{h_auto_str}|🚗 Salida Operativa|{depto}|{motivo_auto}|{lat_actual}|{lon_actual}")
+                    
+                    hoja_asi.append_row([
+                        f_str, h_auto_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
+                        emp_actual["Departamento"], suc_emp, "🚗 Salida Operativa", depto,
+                        motivo_auto, ref_auto, lat_actual, lon_actual, dist_m, estado_ubi, link_maps, sello_auto
+                    ])
+                    
+                    st.balloons()
+                    st.success(f"✔️ Entrada guardada a las {h_str} y Comisión Automática ({motivo_auto}) programada para las {h_auto_str} — {estado_ubi}")
+
+                # --- ESCENARIO 3: REGISTROS NORMALES ---
                 else:
+                    h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                    sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|{depto_extra}|{motivo_extra}|{lat_actual}|{lon_actual}")
+                    
+                    hoja_asi.append_row([
+                        f_str, h_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
+                        emp_actual["Departamento"], suc_emp, evento, depto_extra,
+                        motivo_extra, ref_extra, lat_actual, lon_actual,
+                        dist_m, estado_ubi, link_maps, sello_sha
+                    ])
+                    st.balloons()
                     st.success(f"✔️ Registro guardado exitosamente a las {h_str} — {estado_ubi}")
 
 # ==============================================================================
