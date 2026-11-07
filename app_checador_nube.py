@@ -346,8 +346,8 @@ elif modo == "💻 Panel Administrador":
         with st.form("form_horarios", clear_on_submit=True):
             col_h1, col_h2, col_h3 = st.columns(3)
             dep_sel = col_h1.selectbox("Departamento", list(CATALOGO_SALIDAS_EXTRAS.keys()))
-            h_ent = col_h2.time_input("Hora de Entrada", value=time(8, 0))
-            h_sal = col_h3.time_input("Hora de Salida", value=time(18, 0))
+            h_ent = col_h2.time_input("Hora de Entrada", value=time(8, 30))
+            h_sal = col_h3.time_input("Hora de Salida", value=time(17, 30))
             
             col_h4, col_h5 = st.columns(2)
             h_com_ini = col_h4.time_input("Inicio de Comida", value=time(14, 0))
