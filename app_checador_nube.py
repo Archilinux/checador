@@ -238,7 +238,6 @@ if modo == "📱 Checar desde Celular":
 
                 # --- ESCENARIO 2: ENTRADA DE JORNADA REMOTA (+10 MIN COMISIÓN AUTOMÁTICA) ---
                 elif evento == "🟢 Entrada de Jornada" and not dentro_rango:
-                    # 1. Guarda la entrada a la hora real
                     h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
                     sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|||{lat_actual}|{lon_actual}")
                     hoja_asi.append_row([
@@ -247,17 +246,15 @@ if modo == "📱 Checar desde Celular":
                         "", "Entrada Remota", lat_actual, lon_actual, dist_m, estado_ubi, link_maps, sello_sha
                     ])
                     
-                    # 2. Asignar motivo según departamento
                     depto = emp_actual["Departamento"]
                     if depto == "Taller": motivo_auto = "Reparaciones"
                     elif depto == "Ventas": motivo_auto = "Entrega"
                     elif depto == "Refacciones": motivo_auto = "Compra"
-                    else: motivo_auto = "Otra" # Para Administrativo y Vigilancia
+                    else: motivo_auto = "Otra" 
 
-                    # 3. Programa la Salida Operativa exactamente 10 min en el futuro
                     ahora_salida = ahora + timedelta(minutes=10)
                     h_auto_str = ahora_salida.strftime("%Y-%m-%d %H:%M:%S")
-                    ref_auto = "Apertura automática de comisión (+10 min por entrada remota)"
+                    ref_auto = "[AUTO] Apertura de comisión (+10 min por entrada remota)"
                     sello_auto = generar_hash(f"{emp_actual['Codigo']}|{h_auto_str}|🚗 Salida Operativa|{depto}|{motivo_auto}|{lat_actual}|{lon_actual}")
                     
                     hoja_asi.append_row([
@@ -267,9 +264,38 @@ if modo == "📱 Checar desde Celular":
                     ])
                     
                     st.balloons()
-                    st.success(f"✔️ Entrada guardada a las {h_str} y Comisión Automática ({motivo_auto}) programada para las {h_auto_str} — {estado_ubi}")
+                    st.success(f"✔️ Entrada guardada y Comisión Automática ({motivo_auto}) programada para las {h_auto_str} — {estado_ubi}")
 
-                # --- ESCENARIO 3: REGISTROS NORMALES ---
+                # --- ESCENARIO 3: SALIDA OPERATIVA MANUAL (REEMPLAZA LA AUTOMÁTICA) ---
+                elif evento == "🚗 Salida Operativa":
+                    registros = hoja_asi.get_all_records()
+                    filas_a_borrar = []
+                    
+                    for idx, row_data in enumerate(registros):
+                        if str(row_data['Codigo']) == str(emp_actual['Codigo']) and row_data['Fecha'] == f_str:
+                            if "[AUTO] Apertura de comisión" in str(row_data['Referencia']):
+                                filas_a_borrar.append(idx + 2) 
+                    
+                    for fila_idx in reversed(filas_a_borrar):
+                        hoja_asi.delete_row(fila_idx)
+                        
+                    h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
+                    sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|{depto_extra}|{motivo_extra}|{lat_actual}|{lon_actual}")
+                    
+                    hoja_asi.append_row([
+                        f_str, h_str, str(emp_actual["Codigo"]), emp_actual["Nombre"],
+                        emp_actual["Departamento"], suc_emp, evento, depto_extra,
+                        motivo_extra, ref_extra, lat_actual, lon_actual,
+                        dist_m, estado_ubi, link_maps, sello_sha
+                    ])
+                    
+                    st.balloons()
+                    if filas_a_borrar:
+                        st.success(f"✔️ Salida Operativa registrada. (Se eliminó la comisión automática pendiente) — {estado_ubi}")
+                    else:
+                        st.success(f"✔️ Salida Operativa registrada exitosamente a las {h_str} — {estado_ubi}")
+
+                # --- ESCENARIO 4: REGISTROS NORMALES ---
                 else:
                     h_str = ahora.strftime("%Y-%m-%d %H:%M:%S")
                     sello_sha = generar_hash(f"{emp_actual['Codigo']}|{h_str}|{evento}|{depto_extra}|{motivo_extra}|{lat_actual}|{lon_actual}")
@@ -320,8 +346,8 @@ elif modo == "💻 Panel Administrador":
         with st.form("form_horarios", clear_on_submit=True):
             col_h1, col_h2, col_h3 = st.columns(3)
             dep_sel = col_h1.selectbox("Departamento", list(CATALOGO_SALIDAS_EXTRAS.keys()))
-            h_ent = col_h2.time_input("Hora de Entrada", value=time(8, 30))
-            h_sal = col_h3.time_input("Hora de Salida", value=time(17, 30))
+            h_ent = col_h2.time_input("Hora de Entrada", value=time(8, 0))
+            h_sal = col_h3.time_input("Hora de Salida", value=time(18, 0))
             
             col_h4, col_h5 = st.columns(2)
             h_com_ini = col_h4.time_input("Inicio de Comida", value=time(14, 0))
